@@ -42,7 +42,7 @@ class UIAgent:
         Returns:
             Tuple containing agent info dictionary and list of actions
         """
-        pass
+        return {}, []
 
 
 class AgentS3(UIAgent):

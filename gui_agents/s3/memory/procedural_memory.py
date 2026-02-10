@@ -393,3 +393,17 @@ class PROCEDURAL_MEMORY:
     </answer>
     """
     )
+
+    CODE_SUMMARY_AGENT_PROMPT = textwrap.dedent(
+        """\
+    You are a code execution summarizer. Your role is to provide concise, factual summaries of code execution sessions.
+
+    When summarizing:
+    - Describe what code was written and executed at each step
+    - Report the outputs and results produced
+    - Note the progression of the solution approach
+    - Do NOT make judgments about success or failure
+    - Keep summaries under 150 words
+    - Use clear, factual language
+    """
+    )

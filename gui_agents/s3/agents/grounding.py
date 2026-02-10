@@ -19,6 +19,24 @@ logger = logging.getLogger("desktopenv.agent")
 class ACI:
     def __init__(self):
         self.notes: List[str] = []
+        self.obs: Optional[Dict] = None
+        self.current_task_instruction: Optional[str] = None
+        self.last_code_agent_result: Optional[Dict] = None
+
+    def assign_screenshot(self, obs: Dict) -> None:
+        """Assign a screenshot observation to the agent."""
+        self.obs = obs
+
+    def set_task_instruction(self, task_instruction: str) -> None:
+        """Set the current task instruction."""
+        self.current_task_instruction = task_instruction
+
+    def wait(self, time: float) -> str:
+        """Wait for a specified amount of time.
+        Args:
+            time: float, the amount of time to wait in seconds
+        """
+        return f"""import time; time.sleep({time})"""
 
 
 # Agent action decorator

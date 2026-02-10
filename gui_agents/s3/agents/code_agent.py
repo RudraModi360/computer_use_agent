@@ -134,6 +134,7 @@ class CodeAgent:
 
         step_count = 0
         execution_history = []
+        completion_reason = None
 
         while step_count < self.budget:
             logger.info(f"Step {step_count + 1}/{self.budget}")
@@ -188,7 +189,7 @@ class CodeAgent:
             code_type, code = extract_code_block(action)
 
             if code:
-                result = execute_code(code_type, code, env_controller)
+                result = execute_code(code_type or "python", code, env_controller)
                 # Prepare formatted output and error for logging
                 output = result.get("output", "")
                 error = result.get("error", "")
@@ -251,7 +252,7 @@ class CodeAgent:
             step_count += 1
 
         # Handle budget exhaustion
-        if "completion_reason" not in locals():
+        if completion_reason is None:
             print(f"\n⏰ BUDGET EXHAUSTED - {step_count} steps completed")
             print("=" * 60)
             print(f"Maximum budget of {self.budget} steps reached")

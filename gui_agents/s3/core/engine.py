@@ -13,7 +13,12 @@ from openai import (
 
 
 class LMMEngine:
-    pass
+    def generate(self, messages, temperature=0.0, max_new_tokens=None, **kwargs):
+        raise NotImplementedError("Subclasses must implement generate()")
+
+    def generate_with_thinking(self, messages, temperature=0.0, max_new_tokens=None, **kwargs):
+        """Default fallback: engines without thinking support just use regular generate."""
+        return self.generate(messages, temperature=temperature, max_new_tokens=max_new_tokens, **kwargs)
 
 
 class LMMEngineOpenAI(LMMEngine):
@@ -438,6 +443,55 @@ class LMMEngineParasail(LMMEngine):
                 messages=messages,
                 max_tokens=max_new_tokens if max_new_tokens else 4096,
                 temperature=temperature,
+                **kwargs,
+            )
+            .choices[0]
+            .message.content
+        )
+
+
+class LMMEngineOllama(LMMEngine):
+    """Engine for Ollama local LLM inference using OpenAI-compatible API."""
+
+    def __init__(
+        self,
+        base_url=None,
+        api_key=None,
+        model=None,
+        rate_limit=-1,
+        temperature=None,
+        **kwargs,
+    ):
+        assert model is not None, "Ollama model name must be provided (e.g., 'llama3.2-vision', 'llava')"
+        self.model = model
+        self.base_url = base_url
+        self.api_key = api_key
+        self.request_interval = 0 if rate_limit == -1 else 60.0 / rate_limit
+        self.llm_client = None
+        self.temperature = temperature
+
+    @backoff.on_exception(
+        backoff.expo, (APIConnectionError, APIError, RateLimitError), max_time=60
+    )
+    def generate(self, messages, temperature=0.0, max_new_tokens=None, **kwargs):
+        # Ollama doesn't require an API key, use dummy if not provided
+        api_key = self.api_key or os.getenv("OLLAMA_API_KEY") or "ollama"
+        
+        # Default Ollama endpoint
+        base_url = self.base_url or os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434/v1"
+        
+        if not self.llm_client:
+            self.llm_client = OpenAI(base_url=base_url, api_key=api_key)
+        
+        # Use instance temperature if set, otherwise use the parameter
+        temp = self.temperature if self.temperature is not None else temperature
+        
+        return (
+            self.llm_client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                max_tokens=max_new_tokens if max_new_tokens else 4096,
+                temperature=temp,
                 **kwargs,
             )
             .choices[0]

@@ -24,11 +24,13 @@ paused = False
 def get_char():
     """Get a single character from stdin without pressing Enter"""
     try:
-        # Import termios and tty on Unix-like systems
-        if platform.system() in ["Darwin", "Linux"]:
-            import termios
-            import tty
-
+        if platform.system() == "Windows":
+            import msvcrt
+            return msvcrt.getch().decode("utf-8", errors="ignore")
+        else:
+            # Unix-like systems
+            import termios  # type: ignore[import-not-found]
+            import tty  # type: ignore[import-not-found]
             fd = sys.stdin.fileno()
             old_settings = termios.tcgetattr(fd)
             try:
@@ -37,12 +39,7 @@ def get_char():
             finally:
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
             return ch
-        else:
-            # Windows fallback
-            import msvcrt
-
-            return msvcrt.getch().decode("utf-8", errors="ignore")
-    except:
+    except Exception:
         return input()  # Fallback for non-terminal environments
 
 
@@ -142,6 +139,12 @@ def show_permission_dialog(code: str, action_description: str):
             f'zenity --question --title="Action Permission" --text="Do you want to execute this action?\n\n{code}" --width=400 --height=200'
         )
         return result == 0
+    elif platform.system() == "Windows":
+        # On Windows, default to approved (no native dialog equivalent without extra deps)
+        print(f"\n⚠️  About to execute: {code}")
+        print(f"   Description: {action_description}")
+        response = input("   Approve? (y/n): ").strip().lower()
+        return response in ('y', 'yes', '')
     return False
 
 
@@ -163,7 +166,9 @@ def run_agent(agent, instruction: str, scaled_width: int, scaled_height: int):
             time.sleep(0.1)
         # Get screen shot using pyautogui
         screenshot = pyautogui.screenshot()
-        screenshot = screenshot.resize((scaled_width, scaled_height), Image.LANCZOS)
+        # Use Resampling.LANCZOS for newer Pillow, fallback to LANCZOS constant
+        _lanczos = getattr(Image, 'Resampling', Image).LANCZOS
+        screenshot = screenshot.resize((scaled_width, scaled_height), _lanczos)
 
         # Save the screenshot to a BytesIO object
         buffered = io.BytesIO()

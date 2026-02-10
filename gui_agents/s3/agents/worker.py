@@ -1,7 +1,7 @@
 from functools import partial
 import logging
 import textwrap
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from gui_agents.s3.agents.grounding import ACI
 from gui_agents.s3.core.module import BaseModule
@@ -122,7 +122,7 @@ class Worker(BaseModule):
             if len(self.reflection_agent.messages) > self.max_trajectory_length + 1:
                 self.reflection_agent.messages.pop(1)
 
-    def _generate_reflection(self, instruction: str, obs: Dict) -> Tuple[str, str]:
+    def _generate_reflection(self, instruction: str, obs: Dict) -> Tuple[Optional[str], Optional[str]]:
         """
         Generate a reflection based on the current observation and instruction.
 
