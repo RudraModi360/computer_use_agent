@@ -176,7 +176,8 @@ class AutomationAgent:
                         'success': True,
                         'steps_executed': step_count,
                         'total_time': time.time() - start_time,
-                        'action_history': [r.to_dict() for r in self.action_history]
+                        'action_history': [r.to_dict() for r in self.action_history],
+                        'final_result': action.reason
                     }
                 
                 # 4. Execute action with retry

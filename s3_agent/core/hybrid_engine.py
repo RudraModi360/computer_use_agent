@@ -26,7 +26,7 @@ class HybridVisionEngine:
         ollama_base_url: str = "http://localhost:11434/v1",
         openrouter_model: str = "bytedance/ui-tars-1.5-7b",
         groq_model: str = "meta-llama/llama-4-scout-17b-16e-instruct",
-        ollama_model: str = "qwen2.5:0.5b",
+        ollama_model: str = "gpt-oss:20b-cloud",
         site_url: str = "https://localhost",
         site_name: str = "S3-Agent"
     ):
@@ -73,7 +73,7 @@ class HybridVisionEngine:
         # Request tracking for rate limiting
         self.openrouter_count = 0
         self.openrouter_limit = 50  # Free tier limit
-        self.use_openrouter = True
+        self.use_openrouter = False  # Prioritize Groq as requested
         
     def encode_image(self, image_path_or_bytes) -> str:
         """Encode image to base64"""
@@ -113,7 +113,14 @@ class HybridVisionEngine:
         
         Tries OpenRouter first, falls back to Groq on 429 or error
         """
-        # Try OpenRouter first if available and under limit
+        # Try Groq first as requested
+        if self.groq_client:
+            try:
+                return self._try_groq(messages, temperature, max_tokens)
+            except Exception as e:
+                print(f"  [Groq] Error: {e}, attempting OpenRouter fallback")
+        
+        # Fallback to OpenRouter if available and under limit
         if self.use_openrouter and self.openrouter_client and self.openrouter_count < self.openrouter_limit:
             try:
                 result = self._try_openrouter(messages, temperature, max_tokens)
@@ -121,17 +128,9 @@ class HybridVisionEngine:
                 print(f"  [OpenRouter] Request {self.openrouter_count}/{self.openrouter_limit}")
                 return result
             except Exception as e:
-                if "429" in str(e) or "rate limit" in str(e).lower():
-                    self.use_openrouter = False
-                    print("  [OpenRouter] Rate limit hit, switching to Groq")
-                else:
-                    print(f"  [OpenRouter] Error: {e}, trying Groq")
+                print(f"  [OpenRouter] Error: {e}")
         
-        # Fallback to Groq
-        if self.groq_client:
-            return self._try_groq(messages, temperature, max_tokens)
-        
-        raise Exception("No vision API available (both OpenRouter and Groq failed)")
+        raise Exception("No vision API available (both Groq and OpenRouter failed)")
     
     def _try_openrouter(
         self,
