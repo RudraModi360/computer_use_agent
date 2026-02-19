@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Chrome Tab Tracker - Options</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 5px;
+      color: #333;
+    }
+    input[type="number"] {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    .help-text {
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+    }
+    .status {
+      padding: 15px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+    }
+    .status.connected {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    .status.disconnected {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    button {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    button:hover {
+      background: #2563eb;
+    }
+    .info-box {
+      background: #e3f2fd;
+      border-left: 4px solid #2196f3;
+      padding: 15px;
+      margin-top: 20px;
+      border-radius: 0 6px 6px 0;
+    }
+    .info-box h3 {
+      margin-top: 0;
+      color: #1976d2;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Chrome Tab Tracker</h1>
+    <p class="subtitle">Configure connection to Python relay server</p>
+    
+    <div id="status" class="status disconnected">
+      Checking connection...
+    </div>
+    
+    <div class="form-group">
+      <label for="relayPort">Relay Server Port</label>
+      <input type="number" id="relayPort" min="1024" max="65535" value="18792">
+      <p class="help-text">The port where your Python relay server is running (default: 18792)</p>
+    </div>
+    
+    <button id="saveBtn">Save Settings</button>
+    <button id="testBtn" style="margin-left: 10px; background: #10b981;">Test Connection</button>
+    
+    <div class="info-box">
+      <h3>How to use</h3>
+      <ol>
+        <li>Start the Python relay server: <code>python relay_server.py</code></li>
+        <li>Click the extension icon to collect all tabs</li>
+        <li>Data will be sent to your Python agent automatically</li>
+      </ol>
+    </div>
+  </div>
+
+  <script>
+    // Load current settings
+    chrome.storage.local.get(['relayPort'], (result) => {
+      if (result.relayPort) {
+        document.getElementById('relayPort').value = result.relayPort;
+      }
+      checkConnection();
+    });
+
+    // Save settings
+    document.getElementById('saveBtn').addEventListener('click', async () => {
+      const port = parseInt(document.getElementById('relayPort').value, 10);
+      if (port > 0 && port <= 65535) {
+        await chrome.storage.local.set({ relayPort: port });
+        showStatus('Settings saved!', 'connected');
+      } else {
+        showStatus('Invalid port number', 'disconnected');
+      }
+    });
+
+    // Test connection
+    document.getElementById('testBtn').addEventListener('click', checkConnection);
+
+    async function checkConnection() {
+      const port = parseInt(document.getElementById('relayPort').value, 10);
+      try {
+        const response = await fetch(`http://127.0.0.1:${port}/health`, {
+          signal: AbortSignal.timeout(2000)
+        });
+        if (response.ok) {
+          showStatus('Connected to relay server!', 'connected');
+        } else {
+          showStatus('Relay server not responding', 'disconnected');
+        }
+      } catch (err) {
+        showStatus('Cannot connect to relay server. Make sure Python server is running.', 'disconnected');
+      }
+    }
+
+    function showStatus(message, type) {
+      const status = document.getElementById('status');
+      status.textContent = message;
+      status.className = `status ${type}`;
+    }
+  </script>
+</body>
+</html>

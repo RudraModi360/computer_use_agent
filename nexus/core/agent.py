@@ -10,14 +10,16 @@ from nexus.config import config
 # Components
 from nexus.memory.rag import SemanticMemory
 from nexus.core.session import Session
-from nexus.core.llm import OllamaProvider, LlamaCppProvider
+from nexus.core.llm import create_provider
 from nexus.tools.registry import ToolRegistry
 from nexus.tools.shell import run_shell
+from nexus.tools.browser import browser_action
+
 
 class NexusAgent:
     """
-    Nexus: A Semantic, Shell-Integrated Autonomous Agent.
-    Refactored for robustness using Reference Patterns.
+    Nexus: A Semantic, Shell-Integrated Autonomous Agent
+    with Browser Automation capabilities.
     """
     def __init__(self):
         # 1. Initialize Components
@@ -27,52 +29,91 @@ class NexusAgent:
         print(f"[Nexus] Loading Tool Registry...")
         self.registry = ToolRegistry()
         self.registry.register(run_shell)
+        self.registry.register(browser_action)
         
         print(f"[Nexus] Initializing LLM Provider ({config.LLM_PROVIDER})...")
-        if config.LLM_PROVIDER == "ollama":
-            self.llm = OllamaProvider()
-        elif config.LLM_PROVIDER == "llamacpp":
-            self.llm = LlamaCppProvider()
-        else:
-            raise ValueError(f"Unknown Provider: {config.LLM_PROVIDER}")
+        self.llm = create_provider()
             
         # 2. Initialize Session
         self.session = Session(self._get_system_prompt())
+        
+        # 3. Start LiveView if enabled
+        self._live_view = None
+        if config.BROWSER_LIVE_VIEW:
+            self._start_live_view()
+
+    def _start_live_view(self):
+        """Start the LiveView visual rendering server."""
+        try:
+            from nexus.browser.browser_client import BrowserClient
+            from nexus.browser.live_view import LiveViewServer
+            
+            client = BrowserClient(
+                base_url=config.BROWSER_CONTROL_URL,
+                auth_token=config.BROWSER_AUTH_TOKEN,
+                profile=config.BROWSER_PROFILE,
+            )
+            self._live_view = LiveViewServer(client, port=config.BROWSER_LIVE_VIEW_PORT)
+            self._live_view.start()
+        except ImportError as e:
+            print(f"[Nexus] LiveView not available (install flask): {e}")
+        except Exception as e:
+            print(f"[Nexus] LiveView failed to start: {e}")
 
     def _get_system_prompt(self) -> str:
         return f"""# ROLE: Nexus
-Nexus is an advanced, shell-integrated autonomous agent designed for high-precision data management and system automation.
+Nexus is an advanced, shell-integrated autonomous agent with browser automation capabilities, designed for high-precision data management, system automation, and web interaction.
 
 # DESCRIPTION
-You operate within a Windows environment with direct access to the local filesystem and persistent semantic memory. You act as a bridge between natural language intent and technical execution, capable of managing complex workflows involving local datasets and system operations.
+You operate within a Windows environment with direct access to:
+1. The local filesystem via shell commands
+2. Persistent semantic memory for long-term knowledge
+3. A full web browser for navigating and interacting with websites
 
 # TOOLS & CAPABILITIES
-1. **Shell Integration (`run_shell`)**: Execute Windows CMD/PowerShell commands. Use for file manipulation, directory traversal (`dir`), and reading file content.
-2. **Semantic Memory**: You are provided with a `RELEVANT MEMORY` block containing past context. Trust this data as the source of truth for recurring tasks and entity relationships.
+
+## 1. Shell Integration (`run_shell`)
+Execute Windows CMD/PowerShell commands. Use for file manipulation, directory traversal, and system operations.
+
+## 2. Browser Automation (`browser_action`)
+Control a web browser to navigate websites, interact with page elements, and extract information.
+
+**Browser Workflow:**
+1. `browser_action(action='launch')` — Start Chrome (do this first)
+2. `browser_action(action='navigate', url='https://...')` — Open a website
+3. `browser_action(action='snapshot')` — See page structure with element refs (e1, e2, ...)
+4. `browser_action(action='click', ref='e3')` — Click element by ref
+5. `browser_action(action='type', ref='e5', text='hello')` — Type into element
+6. `browser_action(action='press', key='Enter')` — Press a key
+7. `browser_action(action='screenshot')` — Capture visual screenshot
+8. `browser_action(action='tabs')` — List open tabs
+
+**Important:** Always use 'snapshot' first to see available elements and their refs before clicking or typing.
+
+## 3. Semantic Memory
+You are provided with a `RELEVANT MEMORY` block containing past context. Trust this data for recurring tasks and entity relationships.
 
 # USAGE & DOMAIN KNOWLEDGE
-- **Data Repository**: Primary data is located in `{os.getcwd()}` .
-- **System Info & Apps Info** : use shell to gather all system required information if needed . 
+- **Data Repository**: Primary data is located in `{os.getcwd()}`.
+- **System Info & Apps Info**: Use shell to gather system information.
 - **Key Files**:
     - `Emails_Supplier.xlsx`: Official directory for Supplier Names, Emails, and Contact Persons.
     - `Products.xlsx`: Inventory data including PIP, EAN, and 'Current Lowest' pricing.
-- **Supplier Mapping**: The 'Current Lowest' column in `Products.xlsx` contains short names. You must cross-reference these with `Emails_Supplier.xlsx` to resolve the full official supplier name.
+- **Supplier Mapping**: The 'Current Lowest' column in `Products.xlsx` contains short names. Cross-reference with `Emails_Supplier.xlsx` to resolve full supplier names.
 
-# PURPOSE
-To provide an autonomous, context-aware interface for managing supplier relations, inventory tracking, and system-level tasks while maintaining data integrity across local Excel datasets.
-
-# CRITICAL CONSTRAINTS (What to care about)
-- **Naming Integrity**: Always use FULL supplier names from `Emails_Supplier.xlsx` when updating master files; short names are for reference only.
-- **Path Persistence**: Reuse known file paths from memory to avoid redundant directory scanning.
-- **Precision**: When drafting emails or updates, ensure product names and pricing are matched exactly as found in the source files.
-- **Safety**: Perform non-destructive shell operations unless explicitly instructed otherwise.
+# CRITICAL CONSTRAINTS
+- **Naming Integrity**: Always use FULL supplier names from `Emails_Supplier.xlsx` when updating master files.
+- **Path Persistence**: Reuse known file paths from memory.
+- **Precision**: Match product names and pricing exactly from source files.
+- **Safety**: Perform non-destructive operations unless explicitly instructed.
+- **Browser Safety**: Do not submit forms or make purchases without explicit user confirmation.
 
 # OPERATIONAL METHODOLOGY
-1. **Identify**: Determine if the task requires data retrieval, file modification, or system exploration.
-2. **Context Retrieval**: Check `RELEVANT MEMORY` first. If missing, use `dir D:\\Client-Data\\` to locate necessary files.
+1. **Identify**: Determine if the task requires data retrieval, file modification, system exploration, or web interaction.
+2. **Context Retrieval**: Check `RELEVANT MEMORY` first. If missing, use shell or browser to locate information.
 3. **Data Pipeline**: 
-    - To find contact info for a product: Search `Products.xlsx` -> Extract supplier short name -> Map to full name in `Emails_Supplier.xlsx` -> Retrieve Email.
-4. **Execution**: Formulate the specific Windows command or response. If drafting an email, proceed directly to the draft once the supplier email is identified.
+    - For contact info: Search `Products.xlsx` → Extract supplier short name → Map to full name in `Emails_Supplier.xlsx` → Retrieve Email.
+4. **Execution**: Formulate the specific command, browser action, or response.
 """
 
     def chat(self, user_input: str) -> str:
@@ -87,19 +128,16 @@ To provide an autonomous, context-aware interface for managing supplier relation
         print(f"\n[Nexus] Retrieved Context:\n{context_str[:200]}...\n")
 
         # 2. Update Session
-        # Inject context into the *latest* system message or as a temporary system message
-        # For simplicity, we append it as a temporary system message for this turn
         self.session.add_message("user", user_input)
         
         # Prepare messages for LLM (including context)
         history = self.session.get_history()
         messages_with_context = [
-            history[0], # System Prompt
+            history[0],  # System Prompt
             {"role": "system", "content": f"RELEVANT MEMORY:\n{context_str}"}
         ] + history[1:]
         
         # 3. Generate & Loop (Think -> Act)
-        # We allow up to 5 turns of tool usage
         final_response_content = ""
         
         for turn in range(5):
@@ -107,24 +145,19 @@ To provide an autonomous, context-aware interface for managing supplier relation
                 # Call LLM
                 response = self.llm.chat(messages_with_context, tools=self.registry.get_schemas())
                 
-                # Handle Response
-                # Different providers return different objects, we expect an OpenAI-like object or dict
-                # Basic normalization:
+                # Handle Response — normalize across providers
                 if hasattr(response, 'choices'):
                     msg = response.choices[0].message
                     content = msg.content
                     tool_calls = msg.tool_calls
                 else:
-                    # Fallback for dict (LlamaCpp sometimes)
-                     msg = response['choices'][0]['message']
-                     content = msg['content']
-                     tool_calls = msg.get('tool_calls')
+                    msg = response['choices'][0]['message']
+                    content = msg['content']
+                    tool_calls = msg.get('tool_calls')
 
                 # Add Assistant Message to History
-                # We need to construct a dict for the session
                 assistant_msg = {"role": "assistant", "content": content}
                 if tool_calls:
-                     # Serialize tool calls if they are objects
                      serialized_tcs = []
                      for tc in tool_calls:
                          if hasattr(tc, 'model_dump'): serialized_tcs.append(tc.model_dump())
@@ -133,7 +166,7 @@ To provide an autonomous, context-aware interface for managing supplier relation
                      assistant_msg["tool_calls"] = serialized_tcs
                 
                 self.session.add_message(**assistant_msg)
-                messages_with_context.append(assistant_msg) # Update local context
+                messages_with_context.append(assistant_msg)
                 
                 # Check for Tool Calls
                 if tool_calls:
@@ -163,7 +196,7 @@ To provide an autonomous, context-aware interface for managing supplier relation
                         except Exception as e:
                             result = f"Error executing tool: {e}"
                             
-                        print(f"[Nexus] Result: {str(result)[:100]}...")
+                        print(f"[Nexus] Result: {str(result)[:200]}...")
                         
                         # Add Tool Output
                         tool_msg = {
@@ -184,6 +217,8 @@ To provide an autonomous, context-aware interface for managing supplier relation
                     
             except Exception as e:
                 print(f"[Nexus] Error in loop: {e}")
+                import traceback
+                traceback.print_exc()
                 final_response_content = f"I encountered an error: {e}"
                 break
 
@@ -195,40 +230,21 @@ To provide an autonomous, context-aware interface for managing supplier relation
         return final_response_content
 
     def _is_worth_remembering(self, user_input: str, response: str) -> bool:
-        """
-        Filter out trivial interactions AND errors.
-        """
-        # 1. Check for Errors in response
+        """Filter out trivial interactions AND errors."""
         if "I encountered an error" in response or "Error executing tool" in response:
             return False
             
         if not response: return False
         
-        # 2. Check for Trivial Inputs
         if len(user_input.strip()) < 5 and user_input.lower().strip() in ['hi', 'hello', 'ok', 'thanks', 'cool']: 
             return False
         
-        # 3. LLM Check
-        prompt = f"""Analyze this interaction value for long-term memory.
+        # Skip trivial shell navigations
+        if "dir" in user_input.lower() or "ls" in user_input.lower():
+            return False
 
-User: {user_input}
-Agent: {response[:500]}...
+        return True
 
-Does this contain useful facts, preferences, code logic, or project details?
-Or is it trivial chitchat, simple navigation (dir, cd), or errors?
-
-Reply with exactly ONE word: SAVE or DISCARD."""
-
-        try:
-            # We use a separate lightweight call here if needed, or just rely on heuristics
-            # For now, let's trust the error check + length check mainly, 
-            # and maybe skip LLM call for "dir" commands to save time
-            if "dir" in user_input.lower() or "ls" in user_input.lower():
-                 return False
-
-            return True 
-        except:
-            return True
 
 if __name__ == "__main__":
     agent = NexusAgent()

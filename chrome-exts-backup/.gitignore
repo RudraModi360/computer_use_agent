@@ -1,0 +1,35 @@
+# Ignore database and cache
+*.db
+*.db-journal
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Corpus exports
+corpus_export.json
+*.jsonl
+
+# Chrome extension (should be loaded unpacked, not packed)
+*.crx
+*.pem

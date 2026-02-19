@@ -19,6 +19,20 @@ def run_shell(command: str) -> str:
     """
     try:
         shell = _shell_manager.get_available_shell()
-        return shell.execute(command, timeout=config.SHELL_TIMEOUT)
+        
+        # Explicit Feedback for User (as requested)
+        print(f"\n[Shell] Executing: {command}")
+        
+        result = shell.execute(command, timeout=config.SHELL_TIMEOUT)
+        
+        # Show output in main terminal for cross-reference
+        if result.strip():
+            print(f"[Shell] Output:\n{result}\n")
+        else:
+            print("[Shell] (No Output)")
+            
+        return result
     except Exception as e:
-        return f"Error executing shell command: {e}"
+        error_msg = f"Error executing shell command: {e}"
+        print(f"[Shell] {error_msg}")
+        return error_msg

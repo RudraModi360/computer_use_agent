@@ -50,8 +50,44 @@ def remove_shell(port):
     except:
         pass
 
+# Global state for persistence
+CURRENT_DIR = os.getcwd()
+
 def run_command(command):
-    """Run command in subprocess and capture output"""
+    """Run command in subprocess with persistent CWD"""
+    global CURRENT_DIR
+    
+    # Handle CD command manually to update state
+    if command.strip().startswith("cd "):
+        try:
+            target = command.strip()[3:].strip()
+            # Handle quotes
+            if target.startswith('"') and target.endswith('"'):
+                target = target[1:-1]
+                
+            new_dir = os.path.abspath(os.path.join(CURRENT_DIR, target))
+            if os.path.exists(new_dir) and os.path.isdir(new_dir):
+                CURRENT_DIR = new_dir
+                return "" # CD usually has no output
+            else:
+                return "The system cannot find the path specified."
+        except Exception as e:
+            return f"Error changing directory: {e}"
+            
+    # Handle drive change (e.g. "d:")
+    if len(command.strip()) == 2 and command.strip()[1] == ":":
+         try:
+            new_drive = command.strip().upper() + "\\"
+            if os.path.exists(new_drive):
+                # We switch drive but usually we want to go to the last cwd on that drive?
+                # For simplicity, just switch to root of drive or keep if possible
+                # Python's os.chdir handles it, but here we track manually.
+                # Actually, simpler to just Try to switch
+                os.chdir(command.strip())
+                CURRENT_DIR = os.getcwd()
+                return ""
+         except: pass
+
     try:
         # We use shell=True to support internal commands like 'dir', 'echo'
         process = subprocess.Popen(
@@ -61,7 +97,7 @@ def run_command(command):
             stderr=subprocess.PIPE,
             stdin=subprocess.PIPE,
             text=True,
-            cwd=os.getcwd()
+            cwd=CURRENT_DIR # Use persistent CWD
         )
         stdout, stderr = process.communicate(timeout=60)
         output = stdout + stderr

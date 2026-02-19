@@ -11,6 +11,11 @@ pygetwindow>=0.10  # For window detection and verification
 # LLM API clients
 openai>=1.0.0
 anthropic>=0.8.0
+groq>=0.4.0
+google-generativeai>=0.4.0
+
+# Browser LiveView
+flask>=3.0.0
 
 # Computer Vision (optional but recommended)
 opencv-python>=4.5.0

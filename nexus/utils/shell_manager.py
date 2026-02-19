@@ -1,4 +1,3 @@
-
 import subprocess
 import threading
 import time
@@ -138,7 +137,10 @@ class ShellManager:
                      if current_ports[port].is_alive():
                         new_shells.append(current_ports[port])
                 else:
-                    new_shells.append(SatelliteShell(port, pid))
+                    # New candidate from file - verify it's actually alive
+                    candidate = SatelliteShell(port, pid)
+                    if candidate.is_alive():
+                        new_shells.append(candidate)
             
             self.shells = new_shells
             
